@@ -1,0 +1,59 @@
+kind: AdaptiveDialog
+name: SubmitLeaveRequest
+description: >
+  Handles requests to book, apply for, or submit leave. Use this topic when
+  an employee wants to request time off, book annual leave, apply for sick leave,
+  or asks questions like "I need to take leave next week", "book my holidays",
+  or "how do I apply for parental leave?"
+
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: SubmitLeaveRequest
+  triggerQueries:
+    - I want to take leave
+    - book annual leave
+    - apply for leave
+    - request time off
+    - I need to take a day off
+    - submit leave request
+    - how do I apply for leave
+
+  actions:
+    - kind: Question
+      id: askLeaveType
+      prompt: What type of leave would you like to request?
+      variable: init:Conversation.LeaveType
+      entity: StringPrebuiltEntity
+
+    - kind: Question
+      id: askStartDate
+      prompt: What is the start date of your leave?
+      variable: init:Conversation.LeaveStartDate
+      entity: DateTimePrebuiltEntity
+
+    - kind: Question
+      id: askEndDate
+      prompt: What is the end date of your leave?
+      variable: init:Conversation.LeaveEndDate
+      entity: DateTimePrebuiltEntity
+
+    - kind: InvokeConnectorAction
+      id: submitRequest
+      connectorActionId: SubmitLeaveRequest
+      inputs:
+        employeeId: =System.User.Id
+        leaveType: =Conversation.LeaveType
+        startDate: =Conversation.LeaveStartDate
+        endDate: =Conversation.LeaveEndDate
+      outputs:
+        requestId: leaveRequest.requestId
+        status: leaveRequest.status
+
+    - kind: SendActivity
+      id: confirmation
+      activity: >
+        Your leave request has been submitted successfully!
+        Reference number: **{leaveRequest.requestId}**
+        Status: {leaveRequest.status}
+        Your manager will be notified for approval.

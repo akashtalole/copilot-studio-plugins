@@ -1,0 +1,32 @@
+kind: ConnectorAction
+name: SubmitLeaveRequest
+description: >
+  Submits a leave request on behalf of an employee and notifies their manager
+  for approval. Use this action when an employee wants to book, apply for,
+  or request leave. Returns a request ID and initial status of the submission.
+
+inputs:
+  - name: employeeId
+    description: The unique identifier of the employee submitting the request
+    type: string
+    required: true
+  - name: leaveType
+    description: Type of leave being requested (e.g., Annual, Sick, Parental, Personal)
+    type: string
+    required: true
+  - name: startDate
+    description: Start date of the leave period in ISO 8601 format (YYYY-MM-DD)
+    type: string
+    required: true
+  - name: endDate
+    description: End date of the leave period in ISO 8601 format (YYYY-MM-DD)
+    type: string
+    required: true
+
+outputs:
+  - name: requestId
+    description: Unique identifier for the submitted leave request
+    type: string
+  - name: status
+    description: Initial status of the request (e.g., Pending Approval)
+    type: string

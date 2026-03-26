@@ -1,0 +1,28 @@
+kind: AdaptiveDialog
+name: RouteToSpecialist
+description: >
+  Routes the employee's request to the appropriate specialist agent when
+  the orchestrator cannot handle it directly. Use this topic when the employee
+  has a request that clearly belongs to HR, IT, or Facilities, e.g.,
+  "I need to reset my password", "book a meeting room for tomorrow",
+  or "what is my leave balance?"
+
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: RouteToSpecialist
+  triggerQueries:
+    - I need help with
+    - connect me to
+    - transfer me to
+    - I have a question about HR
+    - I have an IT issue
+    - book a meeting room
+    - I need to reset my password
+    - what is my leave balance
+    - I need to raise a facilities request
+
+  actions:
+    - kind: SendActivity
+      id: routing
+      activity: Let me connect you with the right specialist team for that.

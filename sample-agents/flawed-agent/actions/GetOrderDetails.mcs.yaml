@@ -1,0 +1,14 @@
+# Issues present:
+#   1. Description too brief (< 30 chars)
+#   2. No "when to use" guidance
+#   3. No return value described
+#   4. Input parameters have no descriptions
+#   (Note: agent instructions reference [GetOrder] but this is named GetOrderDetails)
+
+kind: Action
+name: GetOrderDetails
+description: Gets order data
+
+inputs:
+  - name: orderId
+  - name: customerId

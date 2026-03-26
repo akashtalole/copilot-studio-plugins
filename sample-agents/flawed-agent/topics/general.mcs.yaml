@@ -1,0 +1,18 @@
+# Issues present:
+#   1. Description is too vague (< 20 chars)
+#   2. Topic name contains a period (will break solution export)
+#   3. Generative trigger but no trigger description
+#   4. Description similar to "help" topic (causes routing ambiguity)
+
+kind: AdaptiveDialog
+name: General.Help
+
+description: Helps users
+
+beginDialog:
+  kind: OnChosenByAgent
+  id: main
+  actions:
+    - kind: SendActivity
+      id: reply
+      activity: How can I help you today?

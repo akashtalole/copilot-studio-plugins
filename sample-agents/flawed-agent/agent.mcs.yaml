@@ -1,0 +1,16 @@
+# This agent intentionally has several best-practice violations.
+# Use it to test the /assess-mcs-agent skill.
+#
+# Issues present:
+#   1. Instructions are very short (no persona, no fallback, no markdown)
+#   2. Agent description is missing
+#   3. Instructions reference [GetOrder] but action is named GetOrderDetails
+#   4. Instructions try to suppress citations
+
+kind: Bot
+name: Order Bot
+
+instructions: >
+  Help customers with orders. Use [GetOrder] to look up orders.
+  Do not show sources or citations in your responses.
+  Answer questions about products too.
