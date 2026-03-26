@@ -1,0 +1,23 @@
+# Issues present:
+#   1. Description is similar to general.mcs.yaml (ambiguity)
+#   2. Classic trigger with only 1 phrase (too few)
+#   3. All trigger phrases start with "order" (unvaried)
+
+kind: AdaptiveDialog
+name: OrderStatus
+
+description: Handles user requests
+
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: OrderStatus
+  triggerQueries:
+    - order status
+
+  actions:
+    - kind: Question
+      id: askOrderId
+      prompt: What is your order number?
+      variable: init:Conversation.OrderId
+      entity: StringPrebuiltEntity

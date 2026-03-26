@@ -1,0 +1,38 @@
+kind: AdaptiveDialog
+name: LeaveBalance
+description: >
+  Handles employee queries about their leave balance, remaining leave days,
+  and leave entitlement. Use this topic when an employee asks how many leave
+  days they have left, what their leave balance is, or questions like
+  "how much annual leave do I have?" or "how many sick days are remaining?"
+
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: LeaveBalance
+  triggerQueries:
+    - what is my leave balance
+    - how many leave days do I have
+    - how much annual leave do I have left
+    - check my leave balance
+    - remaining leave days
+    - how many sick days do I have
+
+  actions:
+    - kind: InvokeConnectorAction
+      id: getBalance
+      connectorActionId: GetLeaveBalance
+      inputs:
+        employeeId: =System.User.Id
+      outputs:
+        annualLeave: leaveData.annualLeave
+        sickLeave: leaveData.sickLeave
+
+    - kind: SendActivity
+      id: showBalance
+      activity: |
+        Here is your current leave balance:
+        - **Annual Leave**: {leaveData.annualLeave} days remaining
+        - **Sick Leave**: {leaveData.sickLeave} days remaining
+
+        Would you like to submit a leave request?

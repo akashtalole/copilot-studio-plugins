@@ -1,0 +1,24 @@
+kind: ConnectorAction
+name: GetLeaveBalance
+description: >
+  Retrieves the current leave balance for an employee including annual leave,
+  sick leave, and personal leave days remaining. Use this action when an employee
+  asks about their remaining leave days, leave balance, or leave entitlement.
+  Returns leave balances broken down by leave type.
+
+inputs:
+  - name: employeeId
+    description: The unique identifier of the employee (from System.User.Id)
+    type: string
+    required: true
+
+outputs:
+  - name: annualLeave
+    description: Number of annual leave days remaining
+    type: number
+  - name: sickLeave
+    description: Number of sick leave days remaining
+    type: number
+  - name: personalLeave
+    description: Number of personal leave days remaining
+    type: number

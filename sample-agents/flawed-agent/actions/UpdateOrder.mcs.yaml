@@ -1,0 +1,11 @@
+# Issues present:
+#   1. Description is completely missing
+
+kind: Action
+name: UpdateOrder
+
+inputs:
+  - name: orderId
+    description: The order ID to update
+  - name: status
+    description: The new order status

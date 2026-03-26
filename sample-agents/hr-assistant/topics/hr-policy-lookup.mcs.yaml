@@ -1,0 +1,57 @@
+kind: AdaptiveDialog
+name: HRPolicyLookup
+description: >
+  Retrieves and explains Contoso HR policies and procedures. Use this topic
+  when an employee asks about company policies, guidelines, or procedures,
+  e.g., "what is the dress code policy?", "what is the parental leave policy?",
+  "can I work from home?", or "what is the disciplinary process?"
+
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: HRPolicyLookup
+  triggerQueries:
+    - what is the company policy on
+    - tell me about the HR policy
+    - what is the dress code
+    - can I work from home
+    - what is the parental leave policy
+    - explain the disciplinary process
+    - what are the rules for
+
+  actions:
+    - kind: Question
+      id: askPolicyTopic
+      prompt: What policy or topic would you like to know about?
+      variable: init:Conversation.PolicyTopic
+      entity: StringPrebuiltEntity
+
+    - kind: InvokeConnectorAction
+      id: lookupPolicy
+      connectorActionId: LookupHRPolicy
+      inputs:
+        topic: =Conversation.PolicyTopic
+      outputs:
+        policyContent: policy.content
+        policyUrl: policy.url
+
+    - kind: ConditionGroup
+      id: checkPolicyFound
+      conditions:
+        - id: policyFound
+          condition: =!IsBlank(policy.content)
+          actions:
+            - kind: SendActivity
+              id: showPolicy
+              activity: |
+                Here is the information about **{Conversation.PolicyTopic}**:
+
+                {policy.content}
+
+                For the full policy document, see: {policy.url}
+      elseActions:
+        - kind: SendActivity
+          id: policyNotFound
+          activity: >
+            I wasn't able to find a policy specifically about "{Conversation.PolicyTopic}".
+            Please contact the HR team at hr@contoso.com for assistance.

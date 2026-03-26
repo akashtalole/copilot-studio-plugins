@@ -1,0 +1,21 @@
+kind: ConnectorAction
+name: LookupHRPolicy
+description: >
+  Searches the Contoso HR policy knowledge base for policies, procedures, and
+  guidelines by topic keyword. Use this action when an employee asks about
+  company policies, rules, or procedures. Returns the policy content and a
+  link to the full policy document. If no policy is found, returns empty content.
+
+inputs:
+  - name: topic
+    description: The policy topic or keyword to search for (e.g., "parental leave", "dress code", "remote work")
+    type: string
+    required: true
+
+outputs:
+  - name: content
+    description: The relevant policy content found for the topic
+    type: string
+  - name: url
+    description: URL to the full policy document in SharePoint
+    type: string
