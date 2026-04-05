@@ -1,0 +1,38 @@
+{
+  "name": "mcs-assess-sdk",
+  "version": "1.0.0",
+  "description": "Copilot Studio agent assessment framework using Anthropic Agent SDK — parallel multi-agent scoring with LLM semantic analysis",
+  "main": "dist/cli.js",
+  "bin": {
+    "mcs-assess-sdk": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "assess": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts"
+  },
+  "keywords": [
+    "copilot-studio",
+    "mcs",
+    "generative-orchestration",
+    "assessment",
+    "anthropic",
+    "agent-sdk"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "chalk": "^4.1.2",
+    "commander": "^14.0.3",
+    "glob": "^10.3.16",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

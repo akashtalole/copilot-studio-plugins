@@ -1,6 +1,6 @@
-# Copilot Studio Agent Assessment
+# Copilot Studio Agent Assessment (Full Framework)
 
-Assess a Microsoft Copilot Studio (MCS) agent against generative orchestration best practices.
+Comprehensive assessment of a Microsoft Copilot Studio agent against generative orchestration best practices. Orchestrates four specialist assessments in sequence, applies both rule-based and semantic scoring, and produces a consolidated report with prioritised recommendations.
 
 ## Usage
 
@@ -8,319 +8,259 @@ Assess a Microsoft Copilot Studio (MCS) agent against generative orchestration b
 /assess-mcs-agent <path-to-agent-directory>
 ```
 
-**Example:** `/assess-mcs-agent ./my-hr-agent`
+**Individual area assessments** (can be run standalone):
+```
+/assess-instructions       <path>   — agent instructions + description only
+/assess-topics             <path>   — all topics with routing analysis
+/assess-actions            <path>   — all tools/actions with selection analysis
+/assess-connected-agents   <path>   — multi-agent setup and delegation quality
+```
 
-The path should point to a directory cloned via the Copilot Studio VS Code extension, containing `.mcs.yaml` / `.mcs.yml` files.
+**Agent SDK parallel orchestrator** (requires ANTHROPIC_API_KEY):
+```
+cd assessment-framework && npm run assess -- --path <path>
+```
 
 ---
 
 ## Instructions
 
-When this skill is invoked with `$ARGUMENTS` as the agent directory path:
-
-### Step 1 — Discover Files
-
-Use the Glob tool to find all YAML files in the provided path:
-- Pattern: `**/*.mcs.yaml` and `**/*.mcs.yml`
-- Exclude: `node_modules/`
-
-List the discovered files to the user, then read each one.
-
-### Step 2 — Parse and Classify
-
-Read every discovered YAML file. Classify each by its `kind` field:
-
-| kind value | What it represents |
-|---|---|
-| `Bot` | Main agent configuration (agent.mcs.yaml) |
-| `AdaptiveDialog` | A topic (uses `beginDialog` for trigger config) |
-| `Topic` | A topic (alternate schema — uses `trigger` field) |
-| `Action` | A tool/connector action |
-| `ConnectorAction` | A connector-based tool |
-| `FlowAction` | A Power Automate flow action |
-
-Collect these groups:
-- **bot** — the single `kind: Bot` document (expect one; warn if multiple or none)
-- **topics** — all `AdaptiveDialog` or `Topic` documents
-- **actions** — all `Action`, `ConnectorAction`, or `FlowAction` documents
-
-Note any files that could not be parsed (invalid YAML, unexpected structure) and list them as parse errors in the report.
-
-### Step 3 — Run Assessment Rules
-
-Apply all rules below. For each finding, record:
-- **Severity**: `ERROR` (critical, -3 pts) | `WARNING` (should fix, -1 pt) | `INFO` (suggestion, 0 pts)
-- **Message**: Clear, actionable description
+The argument `$ARGUMENTS` is the path to a cloned Copilot Studio agent directory (output of the Copilot Studio VS Code extension).
 
 ---
 
-## Assessment Rules
+### Step 1 — Discovery
 
-### A. Agent Instructions (Bot document)
-
-Assess the `instructions` field of the `kind: Bot` document.
-
-| Rule | Severity | Condition |
-|------|----------|-----------|
-| Instructions missing | ERROR | `instructions` field absent or empty |
-| Instructions too long (critical) | ERROR | `instructions` length > 8000 characters |
-| Instructions too long | WARNING | `instructions` length > 4000 characters |
-| Instructions too short | WARNING | `instructions` length < 200 characters |
-| No Markdown formatting | WARNING | No headings (`# ` or `## `), no bold (`**`), no bullet lists (`- ` or `* `) found |
-| No persona/role defined | WARNING | None of these phrases found (case-insensitive): `you are`, `your role`, `act as`, `you help`, `you assist`, `as an assistant`, `as a ` |
-| No fallback behavior | WARNING | None of these phrases found (case-insensitive): `if not found`, `if you don't`, `if unable`, `cannot find`, `if no `, `otherwise`, `if the answer` |
-| Citation override attempt | WARNING | Any of these found (case-insensitive): `do not cite`, `don't cite`, `no citations`, `without citations`, `suppress citation`, `hide citation`, `don't show sources` |
-| Tool name mismatch | WARNING | Any `[ToolName]` or `[TopicName]` reference in instructions where the name (case-sensitive) does not match any actual action/topic name found in the agent files. Report the mismatched name and suggest the closest match. |
-
-Also assess the `description` field:
-
-| Rule | Severity | Condition |
-|------|----------|-----------|
-| Agent description missing | INFO | `description` field absent or empty |
-| Agent description too short | WARNING | `description` present but < 50 characters |
-
-**Scoring:** Start at 10/10. Each ERROR: -3. Each WARNING: -1. Minimum 0.
-
----
-
-### B. Topics
-
-Assess each topic individually. Topics may use **two possible YAML schemas**:
-
-**Schema A — `kind: AdaptiveDialog`** (VS Code extension format):
-```yaml
-kind: AdaptiveDialog
-beginDialog:
-  kind: OnRecognizedIntent    # classic mode
-  description: "..."          # generative mode description
-  triggerQueries:             # classic mode phrases
-    - "phrase 1"
+Use Glob to find all `.mcs.yaml` and `.mcs.yml` files under `$ARGUMENTS`. Read every one. Print a file inventory:
+```
+Files discovered:
+  agent.mcs.yaml          [Bot]
+  topics/LeaveBalance.mcs.yaml  [AdaptiveDialog]
+  ...
 ```
 
-**Schema B — `kind: Topic`** (alternative format):
-```yaml
-kind: Topic
-name: TopicName
-description: "..."
-trigger:
-  type: AgentChooses          # generative mode
-  description: "..."
-  phrases:                    # classic mode
-    - "phrase 1"
-```
+If no files are found, stop: "No .mcs.yaml files found. Ensure the path points to a Copilot Studio agent cloned via the VS Code extension."
 
-**Trigger type detection:**
-- **Generative mode** (`AgentChooses`): Schema A → `beginDialog.kind` is NOT `OnRecognizedIntent` (look for description-based trigger), OR Schema B → `trigger.type == 'AgentChooses'`
-- **Classic mode**: Schema A → `beginDialog.kind == 'OnRecognizedIntent'` with `triggerQueries`, OR Schema B → `trigger.type == 'UserTypesAMessage'` with `phrases`
-- **Special triggers** (do not flag as missing trigger): `OnConversationStart`, `OnUnknownIntent`, `OnRedirect` — these are system triggers and don't need descriptions
-
-**Topic name:** Use `name` field if present; otherwise use the YAML filename without extension.
-
-Apply these rules per topic:
-
-| Rule | Severity | Condition |
-|------|----------|-----------|
-| Topic description missing | ERROR | `description` field absent or empty (both root-level and `beginDialog.description` if applicable) |
-| Topic description too vague | ERROR | Description present but < 20 characters |
-| Topic description too short | WARNING | Description present but 20–49 characters |
-| No example queries | WARNING | Description doesn't contain any of: `e.g.`, `example`, `such as`, `for example`, `when user asks`, `like `, `queries about`, `questions about` |
-| Topic name has period | ERROR | Topic name contains `.` (prevents solution export) |
-| No trigger defined | WARNING | No trigger/beginDialog found (unless topic is a system topic like Greeting, Goodbye, Escalate, Error, or Fallback) |
-| [Generative] Trigger description missing | ERROR | Generative-mode topic has no trigger description |
-| [Generative] Trigger description too short | WARNING | Trigger description < 30 characters |
-| [Classic] Too few trigger phrases | WARNING | < 3 trigger phrases |
-| [Classic] Duplicate trigger phrases | WARNING | Duplicate phrases found (case-insensitive) |
-| [Classic] Unvaried trigger phrases | WARNING | > 60% of phrases start with the same word |
-| Similar to another topic | WARNING | This topic's description has Jaccard word-similarity > 0.65 with another topic's description (report both topic names) |
-
-**Jaccard similarity**: Split descriptions into word sets, compute `|intersection| / |union|`. Only flag the second topic in the pair to avoid duplicate warnings.
-
-**Scoring per topic:** Start at 10/10. Each ERROR: -3. Each WARNING: -1. Minimum 0.
-
-**Section total:** Sum of all topic scores / (topics × 10) × 40 points.
+If no `kind: Bot` file is found, continue but flag it as a critical error in the report.
 
 ---
 
-### C. Tools / Actions
+### Step 2 — Run All Four Assessments
 
-Assess each action (`kind: Action`, `ConnectorAction`, or `FlowAction`).
+Run each assessment area **in full**, applying both rule-based checks AND semantic scoring. Each section follows its specialist assessment logic (see individual skill files for full rule sets and scoring criteria).
 
-| Rule | Severity | Condition |
-|------|----------|-----------|
-| Action description missing | ERROR | `description` field absent or empty |
-| Action description too brief | ERROR | Description present but < 30 characters |
-| Action description short | WARNING | Description 30–59 characters |
-| No "when to use" guidance | WARNING | Description (lowercase) contains none of: `use when`, `use this`, `call when`, `invoke when`, `to get`, `to retrieve`, `retrieves`, `returns`, `fetches`, `when the user`, `when user` |
-| No return value described | WARNING | Description (lowercase) contains none of: `returns`, `retrieves`, `gets`, `fetches`, `provides`, `gives`, `outputs`, `result` |
-| Input parameters undocumented | WARNING | `inputs` / `parameters` array has entries, but none have a `description` field |
-| Individual param undocumented | INFO | Specific input parameter is missing its `description` field |
+**A. Agent Instructions** — follow the full logic from `assess-instructions.md`:
+- Rule-based checks for presence, length, markdown, persona, fallback, tool refs, citation override
+- Semantic scores: Persona Clarity, Tool Guidance Quality, Operational Completeness, Generative Readiness (each 1–5)
+- Suggested rewrites for failing sections
 
-**Scoring per action:** Start at 10/10. Each ERROR: -3. Each WARNING: -1. Minimum 0.
+**B. Topics** — follow the full logic from `assess-topics.md`:
+- Rule-based checks per topic (description, trigger, phrases, name validity)
+- Cross-topic routing disambiguation analysis
+- Semantic scores per topic: Specificity, Example Coverage, Trigger Quality (each 1–5)
+- Topic Set routing score (1–5)
+- Suggested improved descriptions for poorly scored topics
 
-**Section total:** Sum of all action scores / (actions × 10) × 30 points.
+**C. Tools / Actions** — follow the full logic from `assess-actions.md`:
+- Rule-based checks per action (description presence, length, when-to-use, params)
+- Cross-tool selection ambiguity analysis
+- Instructions alignment check (orphaned/missing tools)
+- Semantic scores per action: Selection Precision, Parameter Guidance (each 1–5)
+- Suggested improved descriptions
 
----
-
-### D. Connected Agents
-
-Connected agents appear as a `connectedAgents` array in the `kind: Bot` document, OR as references in topic nodes that invoke another agent. Check the bot document's `connectedAgents` field.
-
-| Rule | Severity | Condition |
-|------|----------|-----------|
-| Description missing | ERROR | Connected agent has no `description` |
-| Description too short | WARNING | Description present but < 50 characters |
-| No capabilities listed | WARNING | Description (lowercase) doesn't include any of: `handles`, `manages`, `responsible for`, `queries`, `requests about`, `related to`, `including`, `specializes in` |
-| No delegation boundaries | WARNING | Description (lowercase) doesn't include any of: `only`, `exclusively`, `all `, `any `, `when`, `for `, `such as` |
-
-**Scoring:** Start at 10/10 for the section. Each ERROR across all connected agents: -3. Each WARNING: -1. Minimum 0.
-
-If no connected agents are configured, award full 10/10 with note: "No connected agents configured (single-agent setup)."
+**D. Connected Agents** — follow the full logic from `assess-connected-agents.md`:
+- Rule-based checks per connected agent and orchestrator delegation rules
+- Delegation boundary gap/overlap analysis
+- Architecture checklist
+- Semantic scores: Capability Clarity, Boundary Definition (each 1–5)
+- Suggested improvements to descriptions and orchestrator instructions
 
 ---
 
-### E. Parse Errors
+### Step 3 — Scoring
 
-For each file that could not be parsed: -2 points from overall score (max -10).
+**Per-item score:** Start at 10. Each `error` finding: -3. Each `warning` finding: -1. Minimum 0.
 
----
+**Section scores (normalized to weights):**
+- A. Agent Instructions: max 10 pts
+- B. Topics: `sum(topic scores) / (N × 10) × 40` pts
+- C. Actions: `sum(action scores) / (N × 10) × 30` pts
+- D. Connected Agents: max 10 pts (full 10 if no connected agents — single-agent setup is valid)
 
-## Step 4 — Compute Overall Score
+**Semantic bonus/penalty:** The average semantic score across all dimensions in a section adjusts the section total by ±10%:
+- Average semantic > 4: +5% to section score
+- Average semantic 3–4: no change
+- Average semantic < 3: -5% to section score
 
-```
-Overall = Agent Instructions (out of 10)
-        + Topics section (normalized to 40)
-        + Actions section (normalized to 30)
-        + Connected Agents (out of 10)
-        + Parse error penalty (max -10)
-```
-
-If a category has **no items** (e.g., no actions, no topics), exclude it from scoring and renormalize the remaining categories to sum to 100:
-- No topics: redistribute 40 pts proportionally to actions (30→52) and agent (10→17) and connected agents (10→17), rounding to sum to 100.
-- No actions: redistribute 30 pts similarly.
-- If both absent: agent instructions = 70, connected agents = 30.
+**Overall score:** Sum of all section scores, clamped to 0–100.
 
 **Rating:**
 - 80–100 → **PASS** ✅
 - 60–79 → **NEEDS IMPROVEMENT** ⚠️
-- 0–59 → **POOR** ❌
+- 40–59 → **POOR** ❌
+- 0–39  → **CRITICAL** 🚨
 
 ---
 
-## Step 5 — Output the Report
-
-Format the report as follows. Use markdown headers and emoji for readability.
-
----
+### Step 4 — Consolidated Report
 
 ```
-═══════════════════════════════════════════════════
-  COPILOT STUDIO AGENT ASSESSMENT REPORT
-═══════════════════════════════════════════════════
-  Agent  : <agent name from bot.name, or directory name>
-  Path   : <resolved path>
-  Date   : <today's date>
+╔═══════════════════════════════════════════════════╗
+║   COPILOT STUDIO AGENT ASSESSMENT REPORT          ║
+╠═══════════════════════════════════════════════════╣
+║  Agent  : <name>                                  ║
+║  Path   : <resolved path>                         ║
+║  Date   : <today>                                 ║
+║  Files  : <N> .mcs.yaml files parsed              ║
+╠═══════════════════════════════════════════════════╣
+║  OVERALL SCORE:  XX/100  [RATING]                 ║
+╚═══════════════════════════════════════════════════╝
 
-  OVERALL SCORE: XX/100  [PASS / NEEDS IMPROVEMENT / POOR]
-═══════════════════════════════════════════════════
+── A. AGENT INSTRUCTIONS ─────────────────── XX/10 ─
 
-── A. AGENT INSTRUCTIONS ──────────────────── XX/10
+  Rule findings:
+    ✅ Instructions present (N chars)
+    ✅ Markdown formatting detected
+    ❌ Instructions missing persona definition
+    ⚠️  Tool reference [GetLeave] not found (closest: GetLeaveBalance)
 
-  ✅ / ⚠️ / ❌  <finding message>
-  ...
+  Semantic scores:
+    Persona Clarity          : ★★☆☆☆ (2/5)
+    Tool Guidance Quality    : ★★★★☆ (4/5)
+    Operational Completeness : ★★★☆☆ (3/5)
+    Generative Readiness     : ★★★☆☆ (3/5)
 
-── B. TOPICS (<N> topics) ─────────────────── XX/40
+── B. TOPICS ─────────────────────────────── XX/40 ─
 
-  [XX/10]  TopicName
-    ✅ / ⚠️ / ❌  <finding>
-    ...
+  [XX/10]  LeaveBalance  (classic, 6 phrases)
+    ✅ Clear description with examples
+    ✅ Varied trigger phrases
+    Specificity ★★★★★ | Examples ★★★★☆ | Trigger ★★★★★
 
-  [XX/10]  AnotherTopic
-    ...
+  [XX/10]  General  (generative)
+    ❌ Description missing trigger description
+    ❌ Description too vague: "Helps users"
+    Specificity ★☆☆☆☆ | Examples ★☆☆☆☆ | Trigger ★☆☆☆☆
 
-── C. TOOLS / ACTIONS (<N> tools) ─────────── XX/30
+  Cross-topic routing:
+    ⚠️  "General" vs "Greeting" — routing ambiguity detected
+    ✅  No coverage gaps identified
 
-  [XX/10]  ToolName
-    ✅ / ⚠️ / ❌  <finding>
-    ...
+── C. TOOLS / ACTIONS ───────────────────── XX/30 ─
 
-── D. CONNECTED AGENTS (<N> agents) ─────────  XX/10
+  [XX/10]  GetLeaveBalance
+    ✅ Clear description with return value and when-to-use
+    ✅ All input parameters documented
+    Selection Precision ★★★★★ | Param Guidance ★★★★★
 
-  [XX/10]  AgentName
-    ✅ / ⚠️ / ❌  <finding>
+  [XX/10]  UpdateOrder
+    ❌ Description missing
+    Selection Precision ★☆☆☆☆ | Param Guidance ★★★☆☆
 
-── SUMMARY TABLE ────────────────────────────────
+  Cross-tool:
+    ⚠️  "GetOrder" and "GetOrderHistory" have overlapping descriptions
+    ⚠️  "UpdateOrder" not referenced in agent instructions
 
-  | Section                    | Score  | ERRORs | WARNINGs |
-  |----------------------------|--------|--------|----------|
-  | A. Agent Instructions      | XX/10  |   N    |    N     |
-  | B. Topics (N topics)       | XX/40  |   N    |    N     |
-  | C. Tools/Actions (N tools) | XX/30  |   N    |    N     |
-  | D. Connected Agents (N)    | XX/10  |   N    |    N     |
-  | **TOTAL**                  | **XX/100** |  N  |   N   |
+── D. CONNECTED AGENTS ──────────────────── XX/10 ─
 
-── TOP RECOMMENDATIONS ─────────────────────────
+  [XX/10]  InventoryAgent
+    ⚠️  Description doesn't define delegation boundaries
+    Capability Clarity ★★★☆☆ | Boundary Definition ★★☆☆☆
 
-  🔴 HIGH  [ErrorMessage]  →  [How to fix]
-  🔴 HIGH  ...
-  🟡 MED   [WarningMessage]  →  [How to fix]
-  🟡 MED   ...
-  🔵 INFO  [InfoMessage]
-```
+  Architecture checklist:
+    ✅  Agent has specific description
+    ❌  Orchestrator instructions missing delegation rules
+    ⚠️  No fallback for delegation failures
 
----
+── SUMMARY ─────────────────────────────────────────
 
-### Recommendations Priority
+  | Section                    | Score   | ERR | WARN | Semantic |
+  |----------------------------|---------|-----|------|----------|
+  | A. Agent Instructions      |  7/10   |  1  |  2   |  3.0/5   |
+  | B. Topics (N)              | 26/40   |  2  |  4   |  2.8/5   |
+  | C. Tools/Actions (N)       | 18/30   |  1  |  3   |  3.2/5   |
+  | D. Connected Agents (N)    |  6/10   |  1  |  2   |  2.5/5   |
+  | **TOTAL**                  | **57/100** | 5 | 11  |  2.9/5   |
 
-List up to 10 recommendations, sorted:
-1. ERRORs first (prefix `🔴 HIGH`)
-2. WARNINGs second (prefix `🟡 MED`)
-3. INFOs last (prefix `🔵 INFO`)
+── PRIORITISED RECOMMENDATIONS ─────────────────────
 
-For each recommendation include:
-- Which component has the issue (agent name, topic name, action name)
-- What the problem is
-- A concrete suggestion for how to fix it (1 sentence)
+  🔴 HIGH  [Topic: General] Description is too vague for generative routing
+           → Rewrite to: "Handles general greetings and agent capability queries,
+             e.g. 'what can you help me with?' or 'hello'. Do not use for
+             domain-specific queries."
 
----
+  🔴 HIGH  [Topic: General] Missing trigger description for generative mode
+           → Add: beginDialog.description: "Use when user sends a greeting or
+             asks what the agent can do"
 
-### Best Practice Reference Card
+  🔴 HIGH  [Action: UpdateOrder] Description is completely missing
+           → Add: "Updates the status or details of an existing order. Use when
+             the user wants to modify or cancel an order. Returns updated order."
 
-At the end of the report, append this reference for the developer:
+  🔴 HIGH  [Connected: InventoryAgent] Orchestrator instructions don't define
+           when to delegate to this agent
+           → Add delegation rules to agent instructions
 
-```
-── BEST PRACTICE QUICK REFERENCE ────────────────
+  🟡 MED   [Instructions] Fix tool reference: [GetLeave] → [GetLeaveBalance]
+
+  🟡 MED   [Instructions] Add persona definition ("You are a...")
+
+  🟡 MED   [Action: GetOrder] Description overlaps with GetOrderHistory
+           → Clarify which to use for which scenario
+
+  🔵 INFO  [Instructions] Add fallback behaviour for unresolvable requests
+
+── SUGGESTED REWRITES ──────────────────────────────
+
+  [Only shown for items scoring < 3/5 in any semantic dimension]
+
+  Topic "General":
+  \`\`\`yaml
+  description: >
+    Handles general conversational interactions including greetings, capability
+    enquiries, and off-topic questions. Use when the user says hello, asks what
+    the agent can help with, or sends a message that doesn't match any specific
+    topic, e.g. "hi", "what can you do?", "help me".
+  beginDialog:
+    description: "Use when the user sends a greeting or asks about agent capabilities"
+  \`\`\`
+
+  Action "UpdateOrder":
+  \`\`\`yaml
+  description: >
+    Updates the status or details of an existing customer order. Use when a user
+    wants to modify, cancel, or update an order. Requires the order ID and the
+    new status or changes to apply. Returns the updated order details.
+  \`\`\`
+
+── BEST PRACTICE QUICK REFERENCE ───────────────────
 
 Agent Instructions:
-  • Use Markdown (#, ##, **, -) to structure instructions
+  • Use Markdown (# headings, ** bold, - bullets) to structure guidance
   • Define persona: "You are an X that helps Y with Z"
-  • Name tools exactly as configured: [ExactToolName]
-  • Include fallback: "If information is not found, tell the user..."
-  • Keep under 4000 chars for best performance
+  • Reference tools exactly: [ExactToolName]
+  • Cover fallback: "If information is not found, tell the user..."
+  • Keep under 4,000 chars for best performance
 
-Topic Descriptions (critical for generative routing):
-  • Be specific: describe WHEN to invoke, not just what it is
-  • Include examples: "e.g., when user asks 'what is my leave balance?'"
+Topics (generative orchestration):
+  • Description must tell the router WHEN to invoke, not just what it is
+  • Include examples: "e.g., 'what is my balance?', 'how many days do I have?'"
   • Avoid near-identical descriptions across topics
-  • For generative mode: fill in the trigger description field
+  • Generative topics: always fill in trigger description
 
-Tool/Action Descriptions:
-  • Format: "[What it returns] when [when to use it]"
-  • Example: "Returns employee leave balance. Use when user asks about
-    remaining leave days or leave status."
-  • Document all input parameters
+Tools / Actions:
+  • Pattern: "Returns [X]. Use when user asks about [Y]."
+  • Document all input parameters with descriptions
+  • Differentiate from similar tools in the description
 
-Connected Agent Descriptions:
-  • List specific capabilities: "Handles all inventory queries including
-    stock levels, reorder requests, and warehouse locations"
-  • Define boundaries: "Use only for inventory-related requests"
-
-Multi-Agent Setup:
-  • Orchestrator agent: clear instructions on what to delegate vs handle locally
-  • Child/connected agents: focused scope, well-defined boundaries
-  • Test handoff flows: ensure context passes correctly between agents
+Connected Agents:
+  • List specific capabilities: "Handles A, B, and C"
+  • Define scope: "Use only for X — do not delegate Y"
+  • Orchestrator instructions must explicitly state delegation rules
 
 References:
   • https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/generative-orchestration
   • https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/generative-mode-guidance
   • https://microsoft.github.io/agent-academy/operative/03-multi-agent/
+  • https://github.com/microsoft/skills-for-copilot-studio
 ```
